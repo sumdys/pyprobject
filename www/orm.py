@@ -11,21 +11,20 @@ def log(sql,args = ()):
 	logging.info('SQL: %s' % sql)
 
 #connect database confing
-@asyncio.coroutine
-def create_pool(loop, **kw):
+async def create_pool(loop, **kw):
 	logging.info('create database connetion pool...')
 	global __pool
-	__pool = yield from aiomysql.create_pool(
+	__pool = await aiomysql.create_pool(
 		host = kw.get('host','localhost'),
 		port = kw.get('port',3306),
 		user = kw['user'],
 		password = kw['password'],
 		db = kw['db'],
-		charset = kw.get('charset','utf-8'),
-		autocommit = kw.get('autocommit',true),
+		charset = kw.get('charset','utf8'),
+		autocommit = kw.get('autocommit',True),
 		maxsize = kw.get('maxsize', 10),
 		minsize = kw.get('minsize', 1),
-		loop = loop
+		loop=loop
 	)
 
 #查询数据
@@ -105,9 +104,9 @@ class IntegerField(Field):
 
 
 class FloatField(Field):
-			"""docstring for FloatField"""
+	"""docstring for FloatField"""
 	def __init__(self, name=None, primary_key=False, default=0.0):
-		super().__init__(name,'real', primary_key, default)					
+		super().__init__(name, 'real', primary_key, default)					
 
 
 class TextField(Field):
@@ -125,7 +124,7 @@ class ModelMetaclass(type):
 		logging.info('found model：%s (table：%s)' % (name, tableName))
 		
 		mappings = dict()
-		field = []
+		fields = []
 		primaryKey = None
 		for k, v in attrs.items():
 			if isinstance(v, Field):
@@ -137,27 +136,27 @@ class ModelMetaclass(type):
 						raise StandardError('Duplicate primary key for field：%s' % k)
 					primaryKey = k
 				else:
-					field.append(k)
+					fields.append(k)
 		if not primaryKey:
 			raise StandardError('Primary key not found.')
-		for k in mapping.keys():
+		for k in mappings.keys():
 			attrs.pop(k)
-		ascaped_fields = list(map(lambda f:'`%s`' % f, fields))
+		escaped_fields = list(map(lambda f:'`%s`' % f, fields))
 		attrs['__mappings__'] = mappings
 		attrs['__table__'] = tableName
 		attrs['__primary_key__'] = primaryKey
 		attrs['__fields__'] = fields
 		attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey,', '.join(escaped_fields),tableName)
 		attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values(%s)' % (tableName, ','.join(escaped_fields),primaryKey, create_args_string(len(escaped_fields) + 1))
-		attrs['__update__'] = 'update `%s` set where `%s`=?' % (tableName, ','.join(map(lambda f：'`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
+		attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
 		attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName,primaryKey)
 		return type.__new__(cls,name,bases,attrs)
 
 
-class MOdel(dict,metaclass=ModelMetaclass):
+class Model(dict,metaclass=ModelMetaclass):
 	"""docstring for MOdel"""
 	def __init__(self, **kw):
-		super(MOdel, self).__init__(**kw)
+		super(Model, self).__init__(**kw)
 
 	
 	def __getattr__(self, key):
@@ -184,7 +183,7 @@ class MOdel(dict,metaclass=ModelMetaclass):
 		return value
 
 
-	@clasmethod
+	@classmethod
 	#查询多条记录
 	async def findAll(cls, where=None, args=None, **kw):
 		' find object by where clause.'
@@ -206,16 +205,16 @@ class MOdel(dict,metaclass=ModelMetaclass):
 			if isinstance(limit,int):
 				sql.append('?')
 				args.append(limit)
-			elif isinstance(limit, tuple) ad len(limit) == 2:
+			elif isinstance(limit, tuple) and len(limit) == 2:
 				sql.append('?,?')
 				sql.appen(limit)
 			else:
-				raise ValueError('Invalid limit value: %s', % str(limit))
+				raise ValueError('Invalid limit value: %s' % str(limit))
 		rs = await select(' '.join(sql), args)
 		return [cls(**r) for r in rs]
 
 
-	@clasmethod
+	@classmethod
 	async def findNumber(cls, selecField, where=None, args=None):
 		' find number by select and where.'
 		sql = ['select %s _num_ from `%s`' % (selecField, cls.__table__)]
@@ -228,7 +227,7 @@ class MOdel(dict,metaclass=ModelMetaclass):
 			return rs[0]['_num_']
 
 
-	@clasmethod
+	@classmethod
 	#查询一条记录
 	async def find(cls, pk):
 		' find object by primary key. '
