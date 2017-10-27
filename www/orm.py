@@ -179,11 +179,12 @@ class Model(dict,metaclass=ModelMetaclass):
 			if field.default is not None:
 				value = field.default() if callable(field.default) else field.default
 				logging.debug('using default value for %s:%s' % (key, str(value)))
-				setatrr(self, key, value)
+				setattr(self, key, value)
 		return value
 
 
 	@classmethod
+	@asyncio.coroutine
 	#查询多条记录
 	async def findAll(cls, where=None, args=None, **kw):
 		' find object by where clause.'
@@ -215,6 +216,7 @@ class Model(dict,metaclass=ModelMetaclass):
 
 
 	@classmethod
+	@asyncio.coroutine
 	async def findNumber(cls, selecField, where=None, args=None):
 		' find number by select and where.'
 		sql = ['select %s _num_ from `%s`' % (selecField, cls.__table__)]
@@ -228,6 +230,7 @@ class Model(dict,metaclass=ModelMetaclass):
 
 
 	@classmethod
+	@asyncio.coroutine
 	#查询一条记录
 	async def find(cls, pk):
 		' find object by primary key. '
@@ -237,13 +240,16 @@ class Model(dict,metaclass=ModelMetaclass):
 		return cls(**rs[0])
 
 	#添加新记录
+	@asyncio.coroutine
 	async def save(self):
 		args = list(map(self.getValueOrDefault, self.__fields__))
 		args.append(self.getValueOrDefault(self.__primary_key__))
 		rows = await execute(self.__insert__, args)
 		if rows !=1:
 			logging.warn('faield to insert record：affected row: %s' % rows)
+	
 	#更新记录
+	@asyncio.coroutine
 	async def update(self):
 		args = list(map(self.getValue, sel.__fields__))
 		args.append(self.getValue(self.__primary_key__))
@@ -253,6 +259,7 @@ class Model(dict,metaclass=ModelMetaclass):
 
 
 	#删除记录
+	@asyncio.coroutine
 	async def remove(self):
 		args = [self.getValue(self.__primary_key__)]
 		rows = await execute(self.__delete__, args)

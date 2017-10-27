@@ -7,6 +7,10 @@ Configuration
 
 __author__ = 'He Sheng'
 
+
+import config_default
+
+
 class Dict(dict):
 	'''
 	Simple dict but support access as x.y style
@@ -29,10 +33,13 @@ class Dict(dict):
 def merge(defaults, override):
 	r = {}
 	for k, v in defaults.items():
-		if isinstance(v, dict):
-			r[k]= merge(v, override)
+		if k in override:
+			if isinstance(v, dict):
+				r[k] = merge(v, override)
+			else:
+				r[k] = override[k]
 		else:
-			r[k]=override[k]
+			r[k] = v
 	return r
 
 def toDict(d):
