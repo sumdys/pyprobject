@@ -95,6 +95,7 @@ async def index(request):
 		'blogs':blogs
 	}
 
+
 @get('/blog/{id}')
 async def get_blog(id):
 	blog = await Blog.find(id)
@@ -116,12 +117,14 @@ async def register():
 		'__template__':'register.html'
 	}
 
+
 #show signin page
 @get('/signin')
 async def signin():
 	return {
 		'__template__':'signin.html'
 	}
+
 
 @post('/api/authenticate')
 async def authenticate(*, email, passwd):
@@ -147,6 +150,7 @@ async def authenticate(*, email, passwd):
 	r.content_type = 'application/json'
 	r.body = json.dumps(user, ensure_ascii=False).encode('utf-8')
 	return r
+
 
 @get('/signout')
 def signout(request):
