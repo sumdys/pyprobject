@@ -40,7 +40,7 @@ class Page(object):
         '''
 		self.item_count = item_count
 		self.page_size = page_size
-		self.page_count = item_count//page_size + (1 if item_count % page_size> 0 else 0)
+		self.page_count = item_count // int(page_size + (1 if item_count % int(page_size) > 0 else 0))
 		if (item_count == 0) or (page_index > self.page_count):
 			self.offset = 0
 			self.limit = 0
@@ -59,7 +59,7 @@ class Page(object):
 
 		
 
-class APIError(object):
+class APIError(Exception):
 	'''
 	the base APIError which contains error(required), data(optional) and message(optional).
 	'''
@@ -89,6 +89,9 @@ class APIPermissionError(APIError):
 	'''
 	Indicate the api has no permission.
 	'''
-	def __init__(self, arg):
-		super(APIPermissionError, self).__init__('permission:forbidden', 'permission', message)
+	def __init__(self, message=''):
+		super(APIPermissionError, self).__init__('permission: forbidden', 'permission', message)
 								
+if __name__=='__main__':
+    import doctest
+    doctest.testmod()

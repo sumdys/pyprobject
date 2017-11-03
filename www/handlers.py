@@ -13,7 +13,7 @@ from aiohttp import web
 
 from coroweb import get, post
 
-from apis import Page, APIValueError, APIResourceNotFoundError
+from apis import Page, APIValueError, APIResourceNotFoundError, APIPermissionError
 
 from models import User, Comment, Blog, next_id
 
@@ -25,7 +25,7 @@ _COOKIE_KEY = configs.session.secret
 
 def check_admin(request):
 	if request.__user__ is None or not request.__user__.admin:
-		raise APIPermissionError()
+		raise APIPermissionError('请先登录')
 
 def get_page_index(page_str):
 	p = 1
@@ -44,8 +44,8 @@ def user2cookie(user, max_age):
 	'''
 	# build cookie string by: id-expired-sha1
 	expires = str(int(time.time()+max_age))
-	s = '%s-%s-%s-%s' & (user.id, user.passwd, expires, _COOKIE_KEY)
-	L = [user.id, expires, hashlib.sha1(s.encode('utf-8')).hexdigest()]
+	s = '%s-%s-%s-%s' % (user.id, user.passwd, expires, _COOKIE_KEY)
+	L = [str(user.id), expires, hashlib.sha1(s.encode('utf-8')).hexdigest()]
 	return '-'.join(L)
 
 
@@ -92,7 +92,8 @@ async def index(request):
 	]
 	return {
 		'__template__':'blogs.html',
-		'blogs':blogs
+		'blogs':blogs,
+		'__user__':request.__user__
 	}
 
 
@@ -132,20 +133,20 @@ async def authenticate(*, email, passwd):
 		raise APIValueError('email','Invalid email.')
 	if not passwd:
 		raise APIValueError('passwd','Invalid passwd')
-	user = await User.findAll('email=?',[email])
+	users = await User.findAll('email=?',[email])
 	if len(users) == 0:
 		raise APIValueError('email','Email not exist.')
 	user = users[0]
 	# check passwd:
 	sha1 = hashlib.sha1()
-	sha1.update(user.id.encode('utf-8'))
+	# sha1.update(user.id.encode('utf-8'))
 	sha1.update(b':')
 	sha1.update(passwd.encode('utf-8'))
 	if user.passwd != sha1.hexdigest():
 		raise APIValueError('passwd','Invalid password.')
 	# authenticate ok ,set cookie
 	r = web.Response()
-	r.set_cookie(COOKIT_NAME, user2cookie(user,86400),max_age=86400,httponly=True)
+	r.set_cookie(COOKIE_NAME, user2cookie(user,86400),max_age=86400,httponly=True)
 	user.passwd = '******'
 	r.content_type = 'application/json'
 	r.body = json.dumps(user, ensure_ascii=False).encode('utf-8')
@@ -156,9 +157,16 @@ async def authenticate(*, email, passwd):
 def signout(request):
 	referer = request.headers.get('Referer')
 	r = web.HTTPFound(referer or '/')
-	r.set_cookie(COOKIT_NAME, '-deleted-', max_age=0, httponly=True)
+	r.set_cookie(COOKIE_NAME, '-deleted-', max_age=0, httponly=True)
 	logging.info('user signed out.')
 	return r
+
+@get('/manage/blogs')
+def manage_blogs(*, page=1):
+	return {
+		'__template__':'manage_blogs.html',
+		'page_index':get_page_index(page)
+	}
 
 
 @get('/manage/blogs/create')
@@ -228,6 +236,16 @@ async def api_get_blog(*, id):
 	blog = await Blog.find(id)
 	return blog
 
+#获取日志列表
+@get('/api/blogs')
+async def api_blogs(*, page='1'):
+	page_index = get_page_index(page)
+	num = await Blog.findNumber('count(id)')
+	p = Page(num, page_index)
+	if num == 0:
+		return dict(page=p, blogs=())
+	blogs = await Blog.findAll(orderBy='created_at desc', limit=(p.offset, p.limit))
+	return dict(page=p, blogs=blogs)
 
 #保存日志
 @post('/api/blogs')
